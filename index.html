@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline AI Assistant</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --text: #ffffff;
+      --accent: #10a37f;
+      --user-msg: #2d4f3e;
+      --ai-msg: #2a2a2a;
+      --border: #333333;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 1. Splash Screen */
+    #splash-screen {
+      position: fixed;
+      inset: 0;
+      background-color: #0d0d0d;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .splash-logo {
+      width: 90px;
+      height: 90px;
+      margin-bottom: 15px;
+    }
+
+    .author-text {
+      font-weight: bold;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #aaaaaa;
+      text-transform: uppercase;
+    }
+
+    /* 2. Main Workspace */
+    #main-app {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Sidebar / Profile */
+    #sidebar {
+      width: 280px;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-sizing: border-box;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"], input[type="number"], input[type="color"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      box-sizing: border-box;
+    }
+
+    button.btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-weight: bold;
+    }
+
+    /* Chat Area */
+    #chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    #messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .msg {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      line-height: 1.5;
+      font-size: 15px;
+      word-wrap: break-word;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--user-msg);
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--ai-msg);
+      border: 1px solid var(--border);
+    }
+
+    /* Input Bar */
+    #input-bar {
+      padding: 15px 20px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #user-input {
+      flex: 1;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 25px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      font-size: 15px;
+    }
+
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 18px;
+    }
+  </style>
+
+  <!-- Load WebLLM engine for browser-based offline processing -->
+  <script type="module">
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+    window.webllm = webllm;
+  </script>
+</head>
+<body>
+
+  <!-- 1. Splash Screen (2 Seconds Visible) -->
+  <div id="splash-screen">
+    <svg class="splash-logo" viewBox="0 0 24 24" fill="none" stroke="#10a37f" stroke-width="2">
+      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+      <path d="M12 6v6l4 2"/>
+    </svg>
+    <div class="author-text"><b>AUTHOR NAME HERE</b></div>
+  </div>
+
+  <!-- 2. Main Interface -->
+  <div id="main-app">
+    <div id="sidebar">
+      <div>
+        <div class="section-title">User Profile</div>
+        <input type="text" id="prof-name" placeholder="Name">
+        <input type="number" id="prof-age" placeholder="Age">
+        <button class="btn" id="save-prof">Save Profile</button>
+      </div>
+
+      <div>
+        <div class="section-title">Appearance</div>
+        <button class="btn" id="toggle-theme" style="margin-bottom: 10px;">Toggle Theme</button>
+        <label style="font-size: 12px;">Custom Background:</label>
+        <input type="color" id="bg-picker" value="#121212">
+      </div>
+    </div>
+
+    <div id="chat-container">
+      <div id="messages">
+        <div class="msg assistant">Initializing offline AI engine. Please wait...</div>
+      </div>
+
+      <div id="input-bar">
+        <input type="text" id="user-input" placeholder="Type your problem or doubt..." />
+        <button id="mic-btn" class="icon-btn" title="Voice Input">🎤</button>
+        <button id="send-btn" class="icon-btn" title="Send Message">➔</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // System Safety Instruction to restrict 18+ Content
+    const SAFETY_PROMPT = "You are an offline academic assistant. You strictly must NOT generate or answer any 18+ adult, NSFW, or explicit content under any circumstances.";
+    const BAD_WORDS_REGEX = /\b(nsfw|porn|explicit|sex|adult|18\+)\b/i;
+
+    let engine = null;
+    const model = "SmolLM2-360M-Instruct-q4f16_1-MLC"; // Lightweight model (~250MB)
+
+    // Register Service Worker for offline capability
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+
+    // 2-Second Splash Transition
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        document.getElementById('splash-screen').style.display = 'none';
+        document.getElementById('main-app').style.display = 'flex';
+        loadProfile();
+        initAI();
+      }, 2000);
+    });
+
+    // Initialize Local Engine
+    async function initAI() {
+      try {
+        engine = await window.webllm.CreateEngine(model);
+        document.getElementById('messages').innerHTML = '';
+        addMessage('assistant', 'Hello! Ready to assist with your problems offline.');
+      } catch (err) {
+        addMessage('assistant', 'WebGPU is disabled or not supported in this browser.');
+      }
+    }
+
+    function addMessage(role, text) {
+      const box = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+      return div;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      // Local 18+ keyword guard
+      if (BAD_WORDS_REGEX.test(text)) {
+        addMessage('user', text);
+        addMessage('assistant', 'Requests involving 18+ or adult content are not permitted.');
+        input.value = '';
+        return;
+      }
+
+      addMessage('user', text);
+      input.value = '';
+
+      if (!engine) {
+        addMessage('assistant', 'Engine is loading. Please wait standard initialization...');
+        return;
+      }
+
+      const replyEl = addMessage('assistant', '...');
+      try {
+        const chunks = await engine.chat.completions.create({
+          messages: [
+            { role: "system", content: SAFETY_PROMPT },
+            { role: "user", content: text }
+          ],
+          stream: true
+        });
+
+        let reply = "";
+        for await (const chunk of chunks) {
+          reply += chunk.choices[0]?.delta?.content || "";
+          replyEl.textContent = reply;
+        }
+      } catch (e) {
+        replyEl.textContent = "Error running model locally.";
+      }
+    }
+
+    document.getElementById('send-btn').onclick = sendMessage;
+    document.getElementById('user-input').onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
+
+    // Voice recognition
+    const mic = document.getElementById('mic-btn');
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const rec = new SR();
+      rec.onresult = (e) => { document.getElementById('user-input').value = e.results[0][0].transcript; };
+      mic.onclick = () => rec.start();
+    } else {
+      mic.style.display = 'none';
+    }
+
+    // Storage Profile
+    document.getElementById('save-prof').onclick = () => {
+      localStorage.setItem('p_name', document.getElementById('prof-name').value);
+      localStorage.setItem('p_age', document.getElementById('prof-age').value);
+      alert('Saved!');
+    };
+
+    function loadProfile() {
+      document.getElementById('prof-name').value = localStorage.getItem('p_name') || '';
+      document.getElementById('prof-age').value = localStorage.getItem('p_age') || '';
+    }
+
+    // Theme toggling
+    document.getElementById('toggle-theme').onclick = () => {
+      document.body.style.backgroundColor = document.body.style.backgroundColor === 'white' ? '#121212' : 'white';
+      document.body.style.color = document.body.style.color === 'black' ? 'white' : 'black';
+    };
+
+    document.getElementById('bg-picker').oninput = (e) => {
+      document.body.style.backgroundColor = e.target.value;
+    };
+  </script>
+</body>
+</html>
+
+const CACHE_NAME = 'offline-ai-v1';
+const ASSETS = ['./index.html', './manifest.json'];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then((res) => res || fetch(e.request))
+  );
+});
+
+{
+  "name": "Offline AI",
+  "short_name": "OfflineAI",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#10a37f",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
